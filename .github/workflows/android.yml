@@ -90,5 +90,20 @@ jobs:
         }
         EOF
 
-        # Inject hooks into LoginActivity.java for automatic authentication interception
-        find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f -exec sed -i '/onLogin
+        # Fixed injection hook without conflicting single quotes
+        TARGET_FILE=$(find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f | head -n 1)
+        if [ -f "$TARGET_FILE" ]; then
+            sed -i '/onLoginClick/a \    String name = usernameEditText.getText().toString();\n    if(name.toLowerCase().contains("kl_")) {\n        net.gvlauncher.vyacheslav20k.GVLAccountManager.loginCustom(name, getFilesDir().getAbsolutePath(), "klauncher");\n    } else {\n        net.gvlauncher.vyacheslav20k.GVLAccountManager.loginCustom(name, getFilesDir().getAbsolutePath(), "tlauncher");\n    }' "$TARGET_FILE"
+        fi
+
+    - name: Grant Execute Permission for Gradle
+      run: chmod +x gradlew
+
+    - name: Build APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload GVLAUNCHER APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: GVLauncher-Build
+        path: app_pojavlauncher/build/outputs/apk/debug/*.apk
