@@ -24,18 +24,18 @@ jobs:
 
     - name: Transform to GVLAUNCHER
       run: |
-        # 1. Patch Application ID to custom package name
+        # 1. Patch Application ID to custom package name globally
         find . -type f -name "build.gradle" -exec sed -i 's/applicationId ".*"/applicationId "NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
 
-        # 2. Update Launcher App Name and Studio Credits in strings.xml
-        STRINGS_FILE="app_pojavlauncher/src/main/res/values/strings.xml"
+        # 2. Dynamically locate strings.xml and patch app name / credits
+        STRINGS_FILE=$(find . -type f -path "*/src/main/res/values/strings.xml" | head -n 1)
         if [ -f "$STRINGS_FILE" ]; then
             sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">GVLAUNCHER<\/string>/g' "$STRINGS_FILE"
             sed -i 's/<\/resources>/    <string name="gv_credits">Обновлённый лаунчер сделала студия GAMEVANILASTUDIOS под руководством VYACHESLAV20K<\/string>\n<\/resources>/g' "$STRINGS_FILE"
         fi
 
-        # 3. Apply Blue Interface Palette in colors.xml
-        COLORS_FILE="app_pojavlauncher/src/main/res/values/colors.xml"
+        # 3. Dynamically locate colors.xml and patch branding colors
+        COLORS_FILE=$(find . -type f -path "*/src/main/res/values/colors.xml" | head -n 1)
         if [ -f "$COLORS_FILE" ]; then
             sed -i 's/<color name="colorPrimary">.*<\/color>/<color name="colorPrimary">#0D47A1<\/color>/g' "$COLORS_FILE"
             sed -i 's/<color name="colorPrimaryDark">.*<\/color>/<color name="colorPrimaryDark">#0A3578<\/color>/g' "$COLORS_FILE"
@@ -46,8 +46,8 @@ jobs:
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://t.me/[A-Za-z0-9_]*|https://t.me/GAMEVANILAPrivateServer|g' {} +
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://discord.gg/[A-Za-z0-9_]*|https://discord.gg/6f4SqmhWa|g' {} +
 
-        # 5. Inject TLauncher & KLauncher Auth Interceptor into LoginActivity.java
-        LOGIN_FILE=$(find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f | head -n 1)
+        # 5. Dynamically locate LoginActivity.java and inject TLauncher & KLauncher interceptor
+        LOGIN_FILE=$(find . -type f -name "LoginActivity.java" | head -n 1)
         if [ -f "$LOGIN_FILE" ]; then
             sed -i '/onLoginClick/a \    String name = usernameEditText.getText().toString();\n    try {\n        org.json.JSONObject acc = new org.json.JSONObject();\n        acc.put("username", name);\n        String pref = name.toLowerCase().contains("kl_") ? "KLauncher:" : "OfflinePlayer:";\n        String uid = java.util.UUID.nameUUIDFromBytes((pref + name).getBytes()).toString();\n        acc.put("uuid", uid);\n        acc.put("accessToken", "00000000000000000000000000000000");\n        acc.put("profileId", uid.replace("-", ""));\n        acc.put("userType", "legacy");\n        acc.put("authProvider", name.toLowerCase().contains("kl_") ? "klauncher" : "tlauncher");\n        java.io.File authDir = new java.io.File(getFilesDir().getAbsolutePath(), "auth");\n        if (!authDir.exists()) authDir.mkdirs();\n        java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(authDir, name + ".json"));\n        fos.write(acc.toString().getBytes());\n        fos.close();\n    } catch(Exception e) {}' "$LOGIN_FILE"
         fi
@@ -62,6 +62,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: GVLauncher-Build
-        path: |
-          app_pojavlauncher/build/outputs/apk/debug/*.apk
-          app/build/outputs/apk/debug/*.apk
+        path: "**/build/outputs/apk/debug/*.apk"
