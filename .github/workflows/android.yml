@@ -22,16 +22,16 @@ jobs:
 
     - name: Transform to GVLAUNCHER
       run: |
-        # 1. Смена пакета (Package Name) на твой личный
+        # 1. Change Package Name
         find . -type f -name "build.gradle" -exec sed -i 's/applicationId ".*"/applicationId "NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
         find . -type f -name "AndroidManifest.xml" -exec sed -i 's/package=".*"/package="NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
         
-        # Переименование структуры папок под новый пакет
+        # Rename directory structure for the new package
         mkdir -p app_pojavlauncher/src/main/java/net/gvlauncher/vyacheslav20k
         mv app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/* app_pojavlauncher/src/main/java/net/gvlauncher/vyacheslav20k/ 2>/dev/null || true
         find app_pojavlauncher/src/main/java/ -type f -name "*.java" -exec sed -i 's/net.kdt.pojavlaunch/net.gvlauncher.vyacheslav20k/g' {} +
 
-        # 2. Название лаунчера и титры твоей студии
+        # 2. Update Launcher Strings and Credits
         VALUES_DIR="app_pojavlauncher/src/main/res/values"
         mkdir -p $VALUES_DIR
         cat << 'EOF' > $VALUES_DIR/strings_gvlauncher.xml
@@ -41,7 +41,7 @@ jobs:
         </resources>
         EOF
 
-        # 3. Полностью синяя тема интерфейса (перезапись базовых цветов)
+        # 3. Apply Blue Interface Theme Colors
         cat << 'EOF' > $VALUES_DIR/colors_gvlauncher.xml
         <resources>
             <color name="colorPrimary">#0D47A1</color>
@@ -52,11 +52,11 @@ jobs:
         </resources>
         EOF
 
-        # 4. Вшивание твоих ссылок (Telegram и Discord)
+        # 4. Inject Telegram and Discord Links
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://t.me/[A-Za-z0-9_]*|https://t.me/GAMEVANILAPrivateServer|g' {} +
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://discord.gg/[A-Za-z0-9_]*|https://discord.gg/6f4SqmhWa|g' {} +
 
-        # 5. Скрипт создания Java-менеджера аккаунтов для TLauncher и KLauncher
+        # 5. Create Account Manager Auth Logic (TLauncher & KLauncher)
         cat << 'EOF' > app_pojavlauncher/src/main/java/net/gvlauncher/vyacheslav20k/GVLAccountManager.java
         package net.gvlauncher.vyacheslav20k;
         import org.json.JSONObject;
@@ -69,7 +69,6 @@ jobs:
                     JSONObject account = new JSONObject();
                     account.put("username", username);
                     
-                    // Разделяем генерацию UUID для совместимости скинов TL и KL
                     String prefix = clientType.equalsIgnoreCase("klauncher") ? "KLauncher:" : "OfflinePlayer:";
                     String uuid = UUID.nameUUIDFromBytes((prefix + username).getBytes()).toString();
                     
@@ -79,4 +78,17 @@ jobs:
                     account.put("userType", "legacy");
                     account.put("authProvider", clientType.toLowerCase());
 
-                    File authDir = new File(
+                    File authDir = new File(filesDir, "auth");
+                    if (!authDir.exists()) authDir.mkdirs();
+                    File accountFile = new File(authDir, username + ".json");
+                    FileOutputStream fos = new FileOutputStream(accountFile);
+                    fos.write(account.toString().getBytes());
+                    fos.close();
+                    return true;
+                } catch (Exception e) { return false; }
+            }
+        }
+        EOF
+
+        # Inject hooks into LoginActivity.java for automatic authentication interception
+        find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f -exec sed -i '/onLogin
