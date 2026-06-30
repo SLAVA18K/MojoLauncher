@@ -24,82 +24,44 @@ jobs:
 
     - name: Transform to GVLAUNCHER
       run: |
-        # 1. Смена ID приложения (Пакет установки изменится, зависимости не сломаются)
+        # 1. Patch Application ID to custom package name
         find . -type f -name "build.gradle" -exec sed -i 's/applicationId ".*"/applicationId "NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
 
-        # 2. Новое имя лаунчера и титры твоей студии
-        VALUES_DIR="app_pojavlauncher/src/main/res/values"
-        mkdir -p $VALUES_DIR
-        cat << 'EOF' > $VALUES_DIR/strings_gvlauncher.xml
-        <resources>
-            <string name="app_name">GVLAUNCHER</string>
-            <string name="gv_credits">Обновлённый лаунчер сделала студия GAMEVANILASTUDIOS под руководством VYACHESLAV20K</string>
-        </resources>
-        EOF
+        # 2. Update Launcher App Name and Studio Credits in strings.xml
+        STRINGS_FILE="app_pojavlauncher/src/main/res/values/strings.xml"
+        if [ -f "$STRINGS_FILE" ]; then
+            sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">GVLAUNCHER<\/string>/g' "$STRINGS_FILE"
+            sed -i 's/<\/resources>/    <string name="gv_credits">Обновлённый лаунчер сделала студия GAMEVANILASTUDIOS под руководством VYACHESLAV20K<\/string>\n<\/resources>/g' "$STRINGS_FILE"
+        fi
 
-        # 3. Принудительный синий цвет интерфейса
-        cat << 'EOF' > $VALUES_DIR/colors_gvlauncher.xml
-        <resources>
-            <color name="colorPrimary">#0D47A1</color>
-            <color name="colorPrimaryDark">#0A3578</color>
-            <color name="colorAccent">#2979FF</color>
-            <color name="background_material_dark">#0A0E17</color>
-            <color name="primary_dark_material_dark">#0A0E17</color>
-        </resources>
-        EOF
+        # 3. Apply Blue Interface Palette in colors.xml
+        COLORS_FILE="app_pojavlauncher/src/main/res/values/colors.xml"
+        if [ -f "$COLORS_FILE" ]; then
+            sed -i 's/<color name="colorPrimary">.*<\/color>/<color name="colorPrimary">#0D47A1<\/color>/g' "$COLORS_FILE"
+            sed -i 's/<color name="colorPrimaryDark">.*<\/color>/<color name="colorPrimaryDark">#0A3578<\/color>/g' "$COLORS_FILE"
+            sed -i 's/<color name="colorAccent">.*<\/color>/<color name="colorAccent">#2979FF<\/color>/g' "$COLORS_FILE"
+        fi
 
-        # 4. Замена ссылок на твои соцсети
+        # 4. Inject Social Links into Project Resources
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://t.me/[A-Za-z0-9_]*|https://t.me/GAMEVANILAPrivateServer|g' {} +
         find . -type f \( -name "*.java" -o -name "*.xml" -o -name "*.json" \) -exec sed -i 's|https://discord.gg/[A-Za-z0-9_]*|https://discord.gg/6f4SqmhWa|g' {} +
 
-        # 5. Создание менеджера авторизации внутри оригинального пакета (чтобы не ломать импорты)
-        cat << 'EOF' > app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/GVLAccountManager.java
-        package net.kdt.pojavlaunch;
-        import org.json.JSONObject;
-        import java.io.File;
-        import java.io.FileOutputStream;
-        import java.util.UUID;
-        public class GVLAccountManager {
-            public static boolean loginCustom(String username, String filesDir, String clientType) {
-                try {
-                    JSONObject account = new JSONObject();
-                    account.put("username", username);
-                    
-                    String prefix = clientType.equalsIgnoreCase("klauncher") ? "KLauncher:" : "OfflinePlayer:";
-                    String uuid = UUID.nameUUIDFromBytes((prefix + username).getBytes()).toString();
-                    
-                    account.put("uuid", uuid);
-                    account.put("accessToken", "00000000000000000000000000000000");
-                    account.put("profileId", uuid.replace("-", ""));
-                    account.put("userType", "legacy");
-                    account.put("authProvider", clientType.toLowerCase());
-
-                    File authDir = new File(filesDir, "auth");
-                    if (!authDir.exists()) authDir.mkdirs();
-                    File accountFile = new File(authDir, username + ".json");
-                    FileOutputStream fos = new FileOutputStream(accountFile);
-                    fos.write(account.toString().getBytes());
-                    fos.close();
-                    return true;
-                } catch (Exception e) { return false; }
-            }
-        }
-        EOF
-
-        # Внедрение перехвата авторизации в LoginActivity
-        TARGET_FILE=$(find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f | head -n 1)
-        if [ -f "$TARGET_FILE" ]; then
-            sed -i '/onLoginClick/a \    String name = usernameEditText.getText().toString();\n    if(name.toLowerCase().contains("kl_")) {\n        net.kdt.pojavlaunch.GVLAccountManager.loginCustom(name, getFilesDir().getAbsolutePath(), "klauncher");\n    } else {\n        net.kdt.pojavlaunch.GVLAccountManager.loginCustom(name, getFilesDir().getAbsolutePath(), "tlauncher");\n    }' "$TARGET_FILE"
+        # 5. Inject TLauncher & KLauncher Auth Interceptor into LoginActivity.java
+        LOGIN_FILE=$(find app_pojavlauncher/src/main/java/ -name "LoginActivity.java" -type f | head -n 1)
+        if [ -f "$LOGIN_FILE" ]; then
+            sed -i '/onLoginClick/a \    String name = usernameEditText.getText().toString();\n    try {\n        org.json.JSONObject acc = new org.json.JSONObject();\n        acc.put("username", name);\n        String pref = name.toLowerCase().contains("kl_") ? "KLauncher:" : "OfflinePlayer:";\n        String uid = java.util.UUID.nameUUIDFromBytes((pref + name).getBytes()).toString();\n        acc.put("uuid", uid);\n        acc.put("accessToken", "00000000000000000000000000000000");\n        acc.put("profileId", uid.replace("-", ""));\n        acc.put("userType", "legacy");\n        acc.put("authProvider", name.toLowerCase().contains("kl_") ? "klauncher" : "tlauncher");\n        java.io.File authDir = new java.io.File(getFilesDir().getAbsolutePath(), "auth");\n        if (!authDir.exists()) authDir.mkdirs();\n        java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(authDir, name + ".json"));\n        fos.write(acc.toString().getBytes());\n        fos.close();\n    } catch(Exception e) {}' "$LOGIN_FILE"
         fi
 
     - name: Grant Execute Permission for Gradle
       run: chmod +x gradlew
 
-    - name: Build APK
-      run: ./gradlew assembleDebug
+    - name: Build Android APK
+      run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-    - name: Upload GVLAUNCHER APK
+    - name: Upload GVLAUNCHER Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: GVLauncher-Build
-        path: app_pojavlauncher/build/outputs/apk/debug/*.apk
+        path: |
+          app_pojavlauncher/build/outputs/apk/debug/*.apk
+          app/build/outputs/apk/debug/*.apk
