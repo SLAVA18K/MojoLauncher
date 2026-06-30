@@ -23,9 +23,9 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Transform to GVLAUNCHER
+    - name: Transform Theme and Branding
       run: |
-        # 1. Изменение ID приложения на твой пакет
+        # 1. Изменение ID приложения на твой личный пакет
         find . -type f -name "build.gradle" -exec sed -i 's/applicationId ".*"/applicationId "NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
         find . -type f -name "build.gradle.kts" -exec sed -i 's/applicationId = ".*"/applicationId = "NET.GVLAUNCHER.VYACHESLAV20K"/g' {} +
 
@@ -50,8 +50,10 @@ jobs:
     - name: Grant Execute Permission for Gradle
       run: chmod +x gradlew
 
-    - name: Build Android APK
-      run: ./gradlew assembleDebug --no-daemon -x test
+    - name: Build Actions (PojavLauncher Multi-Module Engine)
+      run: |
+        # Для PojavLauncher часто требуется сначала вызвать сборку зависимостей локально
+        ./gradlew :app:assembleDebug --no-daemon -x test || ./gradlew assembleDebug --no-daemon -x test
 
     - name: Upload GVLAUNCHER Artifacts
       if: always()
@@ -61,3 +63,4 @@ jobs:
         path: |
           **/*.apk
           **/build/outputs/apk/**/*.apk
+          app/build/outputs/apk/debug/*.apk
